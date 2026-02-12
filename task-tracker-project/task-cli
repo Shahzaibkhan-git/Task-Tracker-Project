@@ -1,0 +1,123 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import sys
+
+from task_service import (
+    VALID_STATUSES,
+    add_task,
+    delete_task,
+    list_tasks,
+    mark_task,
+    update_task,
+)
+
+
+def _usage() -> str:
+    return (
+        "Usage:\n"
+        "  task-cli add \"description\"\n"
+        "  task-cli update <id> \"description\"\n"
+        "  task-cli delete <id>\n"
+        "  task-cli mark-in-progress <id>\n"
+        "  task-cli mark-done <id>\n"
+        "  task-cli list [done|todo|in-progress|not-done]"
+    )
+
+
+def _parse_task_id(value: str) -> int:
+    try:
+        task_id = int(value)
+    except ValueError as exc:
+        raise ValueError("Task ID must be an integer.") from exc
+
+    if task_id <= 0:
+        raise ValueError("Task ID must be a positive integer.")
+    return task_id
+
+
+def _print_tasks(tasks: list[dict[str, object]]) -> None:
+    if not tasks:
+        print("No tasks found.")
+        return
+
+    for task in tasks:
+        print(
+            f"[{task.get('id')}] "
+            f"{task.get('status')} - "
+            f"{task.get('description')} | "
+            f"createdAt={task.get('createdAt')}, "
+            f"updatedAt={task.get('updatedAt')}"
+        )
+
+
+def main(argv: list[str]) -> int:
+    if not argv:
+        print(_usage())
+        return 1
+
+    action = argv[0]
+    params = argv[1:]
+
+    try:
+        if action == "add":
+            if not params:
+                raise ValueError('Usage: task-cli add "description"')
+            description = " ".join(params)
+            task = add_task(description)
+            print(f"Task added successfully (ID: {task['id']})")
+            return 0
+
+        if action == "update":
+            if len(params) < 2:
+                raise ValueError('Usage: task-cli update <id> "description"')
+            task_id = _parse_task_id(params[0])
+            description = " ".join(params[1:])
+            task = update_task(task_id, description)
+            print(f"Task updated successfully (ID: {task['id']})")
+            return 0
+
+        if action == "delete":
+            if len(params) != 1:
+                raise ValueError("Usage: task-cli delete <id>")
+            task_id = _parse_task_id(params[0])
+            task = delete_task(task_id)
+            print(f"Task deleted successfully (ID: {task['id']})")
+            return 0
+
+        if action == "mark-in-progress":
+            if len(params) != 1:
+                raise ValueError("Usage: task-cli mark-in-progress <id>")
+            task_id = _parse_task_id(params[0])
+            task = mark_task(task_id, "in-progress")
+            print(f"Task marked as in progress (ID: {task['id']})")
+            return 0
+
+        if action == "mark-done":
+            if len(params) != 1:
+                raise ValueError("Usage: task-cli mark-done <id>")
+            task_id = _parse_task_id(params[0])
+            task = mark_task(task_id, "done")
+            print(f"Task marked as done (ID: {task['id']})")
+            return 0
+
+        if action == "list":
+            if len(params) > 1:
+                raise ValueError("Usage: task-cli list [done|todo|in-progress|not-done]")
+            status = params[0] if params else None
+            if status is not None and status not in (*VALID_STATUSES, "not-done"):
+                raise ValueError(
+                    f"Invalid status '{status}'. Expected one of: "
+                    "todo, in-progress, done, not-done."
+                )
+            _print_tasks(list_tasks(status))
+            return 0
+
+        raise ValueError(f"Unknown action '{action}'.\n{_usage()}")
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))
